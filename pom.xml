@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- Deliberately not io.github.lukepopwell (matching the actual Kotlin package name below).
+       Sonatype Central's namespace verification is tied to the exact GitHub username string,
+       hyphen included: io.github.luke-popwell, confirmed directly against the account's own
+       Namespaces page in Central Portal rather than assumed. groupId and the root package
+       don't have to be the same string (Maven doesn't enforce that, just convention), so this
+       is the one deliberate place they diverge: the package itself stays io.github.lukepopwell
+       since Kotlin identifiers can't contain a hyphen at all. -->
+  <groupId>io.github.luke-popwell</groupId>
+  <artifactId>tracker-kt</artifactId>
+  <version>0.15.0</version>
+  <packaging>jar</packaging>
+
+  <name>ForgeOps Tracker (Kotlin)</name>
+  <description>
+    Kotlin error reporting client for ForgeOps. A
+    from-scratch port of sdks/java (this repo's own JVM client), rewritten idiomatically rather
+    than wrapped: see README.md for exactly what that means and why this exists alongside the
+    Java client rather than folding into it, the same "distinct enough to earn its own SDK"
+    reasoning behind TypeScript existing alongside Node.js elsewhere in this repo.
+  </description>
+  <url>https://getforgeops.net</url>
+
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <id>forgeops</id>
+      <name>ForgeOps</name>
+      <url>https://getforgeops.net</url>
+    </developer>
+  </developers>
+
+  <!-- The public read-only mirror of this directory (see script/release_sdks_lib/mirror.rb). -->
+  <scm>
+    <connection>scm:git:https://github.com/Luke-Popwell/forge-ops-tracker-kotlin.git</connection>
+    <developerConnection>scm:git:https://github.com/Luke-Popwell/forge-ops-tracker-kotlin.git</developerConnection>
+    <url>https://github.com/Luke-Popwell/forge-ops-tracker-kotlin</url>
+  </scm>
+
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <kotlin.version>2.0.20</kotlin.version>
+    <kotlin.compiler.jvmTarget>17</kotlin.compiler.jvmTarget>
+    <junit.version>5.11.3</junit.version>
+    <coroutines.version>1.9.0</coroutines.version>
+  </properties>
+
+  <dependencies>
+    <!-- The one runtime dependency this client has: see README.md's "Dependencies" section for
+         why. Coroutines are the idiomatic Kotlin concurrency primitive, and using them (a Channel
+         plus a dedicated dispatcher for the delivery queue) instead of a raw java.util.concurrent
+         thread+queue, which is what sdks/java already does, is a real part of what makes this a
+         genuinely Kotlin-idiomatic port rather than a copy-paste with different syntax. -->
+    <dependency>
+      <groupId>org.jetbrains.kotlinx</groupId>
+      <artifactId>kotlinx-coroutines-core</artifactId>
+      <version>${coroutines.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jetbrains.kotlinx</groupId>
+      <artifactId>kotlinx-coroutines-test</artifactId>
+      <version>${coroutines.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <sourceDirectory>src/main/kotlin</sourceDirectory>
+    <testSourceDirectory>src/test/kotlin</testSourceDirectory>
+    <plugins>
+      <plugin>
+        <groupId>org.jetbrains.kotlin</groupId>
+        <artifactId>kotlin-maven-plugin</artifactId>
+        <version>${kotlin.version}</version>
+        <executions>
+          <execution>
+            <id>compile</id>
+            <phase>compile</phase>
+            <goals><goal>compile</goal></goals>
+          </execution>
+          <execution>
+            <id>test-compile</id>
+            <phase>test-compile</phase>
+            <goals><goal>test-compile</goal></goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <!-- Disable the default (Java) compiler plugin's own compile/testCompile executions:
+             the Kotlin plugin above handles both, including any Java sources mixed into the same
+             tree (none here, but this mirrors the standard kotlin-maven-plugin setup so adding a
+             .java file later just works). -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+        <executions>
+          <execution>
+            <id>default-compile</id>
+            <phase>none</phase>
+          </execution>
+          <execution>
+            <id>default-testCompile</id>
+            <phase>none</phase>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.5.2</version>
+      </plugin>
+      <plugin>
+        <!-- Publishes to Maven Central via the Central Portal (Sonatype's current publishing
+             platform, replacing the old OSSRH/Nexus staging flow). publishingServerId "central"
+             refers to a <server> with that id in the local ~/.m2/settings.xml, holding a Central
+             Portal user token: not present in this environment, so nothing here can actually
+             authenticate yet. autoPublish is false on purpose, since a real `mvn deploy` only
+             uploads and validates the bundle; it does not release it to Central automatically,
+             that still needs a deliberate follow-up (either the Central Portal UI, or this
+             plugin's own publish goal against an already-uploaded deployment). -->
+        <groupId>org.sonatype.central</groupId>
+        <artifactId>central-publishing-maven-plugin</artifactId>
+        <version>0.7.0</version>
+        <extensions>true</extensions>
+        <configuration>
+          <publishingServerId>central</publishingServerId>
+          <autoPublish>false</autoPublish>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+  <!-- Release-only tooling lives behind this profile, not in the main <build>, so a normal
+       `mvn test`/`mvn package` during development never builds a javadoc jar or attempts to
+       sign anything: both of those only make sense, and only need to work, right before a
+       real Central upload. Activate with `-Drelease=true` (or `-P release`) once GPG keys and
+       Central Portal credentials actually exist. -->
+  <profiles>
+    <profile>
+      <id>release</id>
+      <activation>
+        <property>
+          <name>release</name>
+        </property>
+      </activation>
+      <build>
+        <plugins>
+          <!-- Central requires a sources jar alongside the main jar for every artifact.
+               sourceDirectory above is src/main/kotlin, so jar-no-fork picks up the real
+               .kt sources, not an empty jar. -->
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-source-plugin</artifactId>
+            <version>3.3.1</version>
+            <executions>
+              <execution>
+                <id>attach-sources</id>
+                <goals><goal>jar-no-fork</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+          <!-- Central requires a javadoc jar alongside the main jar for every artifact, but the
+               javadoc tool has nothing to do here: sourceDirectory is src/main/kotlin, and the
+               javadoc:jar goal, confirmed directly against this exact source tree, finds zero
+               .java files and silently skips creating any jar at all rather than an empty one
+               (a real API-doc jar would need Dokka instead, a second doc-generation toolchain
+               not worth adding for this alone). maven-jar-plugin, pointed at a directory that
+               doesn't exist, is the standard workaround other pure-Kotlin/Scala libraries on
+               Central use instead: it packages that into a valid, empty "javadoc" classifier
+               jar (confirmed directly: maven-jar-plugin tolerates a missing classesDirectory
+               and still produces a real, if empty, archive), satisfying Central's requirement
+               without claiming to document anything. -->
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-jar-plugin</artifactId>
+            <version>3.4.1</version>
+            <executions>
+              <execution>
+                <id>attach-empty-javadoc</id>
+                <phase>package</phase>
+                <goals><goal>jar</goal></goals>
+                <configuration>
+                  <classifier>javadoc</classifier>
+                  <classesDirectory>${project.basedir}/src/no-javadoc</classesDirectory>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <!-- Central requires every uploaded artifact to be GPG-signed. Needs a real key on
+               the signer's keyring plus (if the key has a passphrase) gpg.passphrase set in
+               settings.xml: neither exists in this environment, so this only runs, and only
+               needs to work, once `-Drelease=true` is actually passed. -->
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>3.2.7</version>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals><goal>sign</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>
