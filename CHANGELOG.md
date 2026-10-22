@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.15.1 (2026-10-22)
+
+- The README says what strict privacy does in its opening lines.
+- The source is public at https://github.com/Luke-Popwell/forge-ops-tracker-kotlin, and the package links to it.
+
 ## 0.15.0 (2026-10-20)
 
 - Strict privacy: a raw path now keeps only its first segment, instead of only losing its digit
