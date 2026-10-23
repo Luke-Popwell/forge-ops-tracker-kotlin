@@ -19,7 +19,7 @@ is a typed, null-safe data holder, and the public API is exposed as a Kotlin `ob
 <dependency>
   <groupId>io.github.luke-popwell</groupId>
   <artifactId>tracker-kt</artifactId>
-  <version>0.16.0</version>
+  <version>0.17.0</version>
 </dependency>
 ```
 

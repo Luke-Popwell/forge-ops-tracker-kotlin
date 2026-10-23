@@ -222,8 +222,9 @@ class StrictPrivacyTest {
         }
     }
 
-    /** Just enough JSON for the vectors file: objects, arrays, strings and the escapes it uses. */
-    private class JsonReader(private val json: String) {
+    /** Just enough JSON for the vectors files: objects, arrays, strings and the escapes they use,
+     * and booleans. Also read by [PiiScrubberTest]. */
+    internal class JsonReader(private val json: String) {
         private var at = 0
 
         fun read(): Any? {
@@ -287,6 +288,14 @@ class StrictPrivacyTest {
                     }
                     at++
                     out.toString()
+                }
+                't' -> {
+                    at += 4
+                    true
+                }
+                'f' -> {
+                    at += 5
+                    false
                 }
                 else -> throw IllegalArgumentException("unexpected JSON at $at")
             }

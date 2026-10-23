@@ -13,7 +13,7 @@
        since Kotlin identifiers can't contain a hyphen at all. -->
   <groupId>io.github.luke-popwell</groupId>
   <artifactId>tracker-kt</artifactId>
-  <version>0.16.0</version>
+  <version>0.17.0</version>
   <packaging>jar</packaging>
 
   <name>ForgeOps Tracker (Kotlin)</name>

@@ -73,4 +73,33 @@ class PiiScrubberTest {
         }
         assertEquals("bob", PiiScrubber.scrub("bob", "username"))
     }
+
+    // pii_scrubbing_vectors.json is a byte-identical copy of sdks/pii_scrubbing_vectors.json,
+    // generated from the server's own PiiScrubber: see sdks/PII_SCRUBBING.md.
+    @Suppress("UNCHECKED_CAST")
+    private fun vectors(kind: String): List<Map<String, Any?>> {
+        val json = javaClass.getResourceAsStream("/pii_scrubbing_vectors.json")!!.use { it.readBytes().toString(Charsets.UTF_8) }
+        return (StrictPrivacyTest.JsonReader(json).read() as Map<String, Any?>)[kind] as List<Map<String, Any?>>
+    }
+
+    @Test
+    fun `scrubs card numbers and ibans in every vector exactly as the server does`() {
+        val vectors = vectors("strings")
+        assertTrue(vectors.isNotEmpty())
+        for (vector in vectors) {
+            assertEquals(vector["scrubbed"], PiiScrubber.scrub(vector["input"]), vector["input"] as String)
+        }
+    }
+
+    @Test
+    @Suppress("UNCHECKED_CAST")
+    fun `redacts bank detail keys in every vector exactly as the server does`() {
+        val vectors = vectors("keys")
+        assertTrue(vectors.isNotEmpty())
+        for (vector in vectors) {
+            val key = vector["key"] as String
+            val scrubbed = PiiScrubber.scrub(mapOf(key to "x")) as Map<String, Any?>
+            assertEquals(if (vector["redacted"] == true) PiiScrubber.REDACTED else "x", scrubbed[key], key)
+        }
+    }
 }
