@@ -56,8 +56,9 @@ open class EventBuilder(private val configuration: Configuration) {
 
     /**
      * The same event under [Configuration.strictPrivacy]: no message (only its fingerprint), no
-     * breadcrumbs, statement or source context, the user's id only, and context/tags reduced to
-     * the allowed keys, each left out entirely when nothing is left.
+     * breadcrumbs, statement or source context, the user only as a keyed hash of its id (and only
+     * with a user key set), and context/tags reduced to the allowed keys, each left out entirely
+     * when nothing is left.
      */
     private fun strictBuild(error: Throwable, context: Map<String, Any?>?, user: Map<String, Any?>?, traceId: String?): Map<String, Any?> {
         val allowedFields = configuration.privacyAllowedFields
@@ -78,7 +79,7 @@ open class EventBuilder(private val configuration: Configuration) {
         StrictPrivacy.allowed(context, allowedFields)?.let { payload["context"] = it }
         StrictPrivacy.allowed(emptyMap(), allowedFields)?.let { payload["tags"] = it }
         payload["sdk_name"] = SDK_NAME
-        StrictPrivacy.user(user)?.let { payload["user"] = it }
+        StrictPrivacy.user(user, configuration.privacyUserKey)?.let { payload["user"] = it }
         if (traceId != null) payload["trace_id"] = traceId
         attachSql(payload, error)
         return scrub(payload)

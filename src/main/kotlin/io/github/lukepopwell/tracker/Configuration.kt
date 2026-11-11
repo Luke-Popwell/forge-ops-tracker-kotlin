@@ -78,8 +78,8 @@ class Configuration {
      * events carry only structured facts (exception class, stack frames, release, environment),
      * never free text. The message is replaced by `message_fingerprint` (see
      * [StrictPrivacy.messageFingerprint]), breadcrumbs aren't recorded or sent, `sql_statement` and
-     * source context aren't sent, the user is sent as its id only, and context and tags keep only
-     * the [privacyAllowedFields] with plain values. Spans keep only their method and host for
+     * source context aren't sent, the user's id is sent only as a keyed hash ([privacyUserKey]),
+     * and context and tags keep only the [privacyAllowedFields] with plain values. Spans keep only their method and host for
      * outbound calls, and only `db.statement` and `db.system` as data. Off by default;
      * `FORGE_OPS_STRICT_PRIVACY=true` turns it on.
      */
@@ -91,6 +91,17 @@ class Configuration {
      * `FORGE_OPS_PRIVACY_ALLOWED_FIELDS=error_code,feature` sets it from the environment.
      */
     var privacyAllowedFields: Set<String> = resolvePrivacyAllowedFields(System::getenv)
+
+    /**
+     * Strict privacy sends the user's id only as a keyed hash ([StrictPrivacy.hashedUserId]) with
+     * this secret, which stays in your app; unset, no user is sent at all. Keep it the same across
+     * deploys and servers, or the same customer counts as two. `FORGE_OPS_PRIVACY_USER_KEY` sets it
+     * from the environment; an empty key counts as unset.
+     */
+    var privacyUserKey: String? = resolvePrivacyUserKey(System::getenv)
+        set(value) {
+            field = value?.takeIf { it.isNotEmpty() }
+        }
 
     /**
      * Whether [ForgeOpsTracker.addBreadcrumb] actually records anything, and whether
@@ -311,6 +322,10 @@ class Configuration {
         /** `FORGE_OPS_STRICT_PRIVACY`: `true` or `1` (any case) turns strict privacy on. */
         fun resolveStrictPrivacy(getenv: (String) -> String?): Boolean =
             getenv("FORGE_OPS_STRICT_PRIVACY")?.trim()?.let { it.equals("true", ignoreCase = true) || it == "1" } ?: false
+
+        /** `FORGE_OPS_PRIVACY_USER_KEY`: the user id key, or `null` when unset or empty. */
+        fun resolvePrivacyUserKey(getenv: (String) -> String?): String? =
+            getenv("FORGE_OPS_PRIVACY_USER_KEY")?.takeIf { it.isNotEmpty() }
 
         /** `FORGE_OPS_PRIVACY_ALLOWED_FIELDS`: comma separated, blanks around each name ignored. */
         fun resolvePrivacyAllowedFields(getenv: (String) -> String?): Set<String> =

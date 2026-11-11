@@ -1,6 +1,8 @@
 package io.github.lukepopwell.tracker
 
 import java.security.MessageDigest
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 /**
  * The rules [Configuration.strictPrivacy] applies, for customers who can't let personal or health
@@ -54,6 +56,19 @@ object StrictPrivacy {
     fun messageFingerprint(message: String?): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(normalizeMessage(message).toByteArray(Charsets.UTF_8))
         return digest.joinToString("") { "%02x".format(it) }.take(FINGERPRINT_LENGTH)
+    }
+
+    /**
+     * The user id strict privacy sends: `"h1:"` and the first 32 lowercase hex characters of
+     * HMAC-SHA256 of the id's UTF-8 text, keyed with the app's own secret
+     * ([Configuration.privacyUserKey]), which ForgeOps never sees. The same id hashes the same under
+     * one key, so affected customers can still be counted.
+     */
+    fun hashedUserId(id: Any, key: String): String {
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(key.toByteArray(Charsets.UTF_8), "HmacSHA256"))
+        val digest = mac.doFinal(id.toString().toByteArray(Charsets.UTF_8))
+        return "h1:" + digest.joinToString("") { "%02x".format(it) }.take(FINGERPRINT_LENGTH)
     }
 
     /**
@@ -116,10 +131,15 @@ object StrictPrivacy {
         return kept.ifEmpty { null }
     }
 
-    /** The user's `id` only, as a string; `null` when there's no id. */
-    internal fun user(user: Map<String, Any?>?): Map<String, Any?>? {
+    /**
+     * Only a keyed hash of the user's `id` ([hashedUserId]), and only when the app set a user key;
+     * `null` when there's no key or no id. A raw id can be a record number that identifies a person,
+     * and an unkeyed hash of a small number can be guessed back.
+     */
+    internal fun user(user: Map<String, Any?>?, key: String?): Map<String, Any?>? {
+        if (key.isNullOrEmpty()) return null
         val id = user?.get("id")?.toString()
-        return if (id.isNullOrBlank()) null else mapOf("id" to id)
+        return if (id.isNullOrBlank()) null else mapOf("id" to hashedUserId(id, key))
     }
 
     /** Span data keeps only the (already masked) `db.statement` and `db.system`. */

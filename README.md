@@ -19,7 +19,7 @@ is a typed, null-safe data holder, and the public API is exposed as a Kotlin `ob
 <dependency>
   <groupId>io.github.luke-popwell</groupId>
   <artifactId>tracker-kt</artifactId>
-  <version>0.17.0</version>
+  <version>0.18.0</version>
 </dependency>
 ```
 
@@ -447,11 +447,15 @@ privacy on, an event carries only structured facts about the error, never free t
 hold a name, an email or a diagnosis:
 
 - The message isn't sent. `message_fingerprint` goes instead: a one-way hash of the message (after
-  PII scrubbing, when that's on) with its numbers, hex ids and UUIDs taken out, so ForgeOps still
+  PII scrubbing, when that's on) with its emails, quoted values, numbers, hex ids and UUIDs taken out, so ForgeOps still
   groups errors without seeing the text.
 - Breadcrumbs aren't recorded or sent, and neither are the SQL statement (even with
   `captureSqlStatement = true`) or source context.
-- The user is sent as its `id` only, never `email` or `username`.
+- The user's `email` and `username` are never sent, and neither is the raw `id`. With
+  `privacyUserKey` set, the id is sent as a keyed hash (HMAC-SHA256 with your key, which never
+  leaves your app), so ForgeOps can still count affected customers but can't read the id. Without
+  a key, no user is sent at all. Keep the key the same across servers and deploys, or one customer
+  counts as two.
 - Context and tags keep only the keys you allow, and only when the value is a string, number or
   boolean.
 - Spans are named by method and host only for outbound calls (`GET api.example.com`), a span named
@@ -467,12 +471,14 @@ counts and timings.
 ForgeOpsTracker.init { config ->
     config.strictPrivacy = true
     config.privacyAllowedFields = setOf("error_code", "feature")
+    config.privacyUserKey = System.getenv("MY_FORGE_OPS_USER_KEY") // default null: no user sent
 }
 ```
 
-Or from the environment: `FORGE_OPS_STRICT_PRIVACY=true` and
-`FORGE_OPS_PRIVACY_ALLOWED_FIELDS=error_code,feature` (comma separated). An option set in code wins
-over the environment. Both are off and empty by default.
+Or from the environment: `FORGE_OPS_STRICT_PRIVACY=true`,
+`FORGE_OPS_PRIVACY_ALLOWED_FIELDS=error_code,feature` (comma separated) and
+`FORGE_OPS_PRIVACY_USER_KEY=...` (an empty key counts as unset). An option set in code wins over the
+environment. All three are off, empty and unset by default.
 
 ForgeOps applies the same rules again on arrival when the project's own Strict privacy setting is
 on, so an app with an older or misconfigured client still can't get text stored for that project.

@@ -50,6 +50,56 @@ class StrictPrivacyTest {
     }
 
     @Test
+    fun `hashes every user id vector exactly as the server does`() {
+        val vectors = vectors("user_id")
+        assertTrue(vectors.isNotEmpty())
+        for (vector in vectors) {
+            assertEquals(vector["hashed"], StrictPrivacy.hashedUserId(vector["id"] as String, vector["key"] as String), vector["id"] as String)
+        }
+    }
+
+    @Test
+    fun `hashes an integer id as its text`() {
+        assertEquals("h1:316d4a35bc95112698f59ef5aac5c29a", StrictPrivacy.hashedUserId(42, "customer-secret"))
+    }
+
+    @Test
+    fun `reads the user key from the environment treating empty as unset`() {
+        assertEquals(null, Configuration.resolvePrivacyUserKey { null })
+        assertEquals(null, Configuration.resolvePrivacyUserKey(mapOf("FORGE_OPS_PRIVACY_USER_KEY" to "")::get))
+        assertEquals("customer-secret", Configuration.resolvePrivacyUserKey(mapOf("FORGE_OPS_PRIVACY_USER_KEY" to "customer-secret")::get))
+        val config = Configuration()
+        assertEquals(Configuration.resolvePrivacyUserKey(System::getenv), config.privacyUserKey)
+        config.privacyUserKey = "explicit"
+        assertEquals("explicit", config.privacyUserKey)
+        config.privacyUserKey = ""
+        assertEquals(null, config.privacyUserKey)
+    }
+
+    @Test
+    fun `a strict event with a user key carries only the hashed id`() {
+        val config = newConfiguration().apply {
+            strictPrivacy = true
+            privacyUserKey = "customer-secret"
+        }
+        val payload = build(CountingEventBuilder(config))
+        assertEquals(mapOf("id" to "h1:316d4a35bc95112698f59ef5aac5c29a"), payload["user"])
+        assertFalse(Json.encode(payload).contains("jane"))
+    }
+
+    @Test
+    fun `a strict event without a user key carries no user`() {
+        val config = newConfiguration().apply { strictPrivacy = true }
+        assertFalse(build(CountingEventBuilder(config)).containsKey("user"))
+        config.privacyUserKey = ""
+        assertFalse(build(CountingEventBuilder(config)).containsKey("user"))
+        // A key with a blank id still sends no user.
+        config.privacyUserKey = "customer-secret"
+        val blank = EventBuilder(config).build(RuntimeException("x"), emptyMap(), mapOf("id" to " ", "email" to "jane@example.com"))
+        assertFalse(blank.containsKey("user"))
+    }
+
+    @Test
     fun `is off by default and read from the environment`() {
         assertEquals(Configuration.resolveStrictPrivacy(System::getenv), Configuration().strictPrivacy)
         assertFalse(Configuration.resolveStrictPrivacy { null })
@@ -88,7 +138,7 @@ class StrictPrivacyTest {
         assertTrue((payload["message_fingerprint"] as String).matches(Regex("[0-9a-f]{32}")))
         assertEquals(mapOf("error_code" to "E42", "retries" to 3, "flagged" to true), payload["context"])
         assertFalse(payload.containsKey("tags"))
-        assertEquals(mapOf("id" to "42"), payload["user"])
+        assertFalse(payload.containsKey("user"))
         assertFalse(payload.containsKey("breadcrumbs"))
         assertFalse(payload.containsKey("endpoint"))
         assertFalse(payload.containsKey("sql_statement"))
@@ -200,6 +250,7 @@ class StrictPrivacyTest {
         serverName = "web-1"
         strictPrivacy = false
         privacyAllowedFields = emptySet()
+        privacyUserKey = null
         captureSqlStatement = true
         appPackagePrefix = "io.github.lukepopwell"
     }
